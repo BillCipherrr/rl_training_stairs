@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import random
 import torch
 from typing import TYPE_CHECKING, Literal
 
@@ -208,3 +209,41 @@ def bad_orientation_2(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return (asset.data.projected_gravity_b[:, 2] > 0) | (asset.data.projected_gravity_b[:, :2].abs() > 0.7).any(-1)
+
+
+def randomize_sim_friction(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    static_friction_range: tuple[float, float],
+    dynamic_friction_range: tuple[float, float],
+):
+    """Randomize physics material friction for the terrain and simulator."""
+
+    static_value = random.uniform(*static_friction_range)
+    dynamic_value = random.uniform(*dynamic_friction_range)
+
+    sim_interface = getattr(env, "sim", None)
+    if sim_interface is not None and hasattr(sim_interface, "physics_material"):
+        physics_material = sim_interface.physics_material
+        if hasattr(physics_material, "static_friction"):
+            physics_material.static_friction = static_value
+        if hasattr(physics_material, "dynamic_friction"):
+            physics_material.dynamic_friction = dynamic_value
+
+    terrain = getattr(env.scene, "terrain", None)
+    if terrain is not None:
+        for attr_name in ("physics_material", "material", "material_cfg"):
+            material = getattr(terrain, attr_name, None)
+            if material is None:
+                continue
+            if hasattr(material, "static_friction"):
+                material.static_friction = static_value
+            if hasattr(material, "dynamic_friction"):
+                material.dynamic_friction = dynamic_value
+
+    extras = getattr(env, "extras", None)
+    if isinstance(extras, dict):
+        extras.setdefault("terrain", {})["friction"] = {
+            "static": static_value,
+            "dynamic": dynamic_value,
+        }

@@ -24,6 +24,27 @@ We've released the following tutorials for training and deploying a reinforcemen
 > [!NOTE]
 > If you want to deploy policies in mujoco or real robots, please use the corresponding deploy repo in [Deep Robotics Github Center](https://github.com/DeepRoboticsLab).
 
+## Fork: Lite3 Stairs Project
+
+This repository is a fork of [DeepRoboticsLab/rl_training](https://github.com/DeepRoboticsLab/rl_training) maintained at [BillCipherrr/rl_training_stairs](https://github.com/BillCipherrr/rl_training_stairs). The fork focuses on extending Lite3 locomotion to stair-climbing terrains while keeping upstream capabilities intact.
+
+- **Project purpose**
+  - Provide a reproducible stair-climbing training setup for Deeprobotics Lite3 using Isaac Lab and RSL-RL PPO.
+  - Document the workflow so others can train, evaluate, and iterate on the stair task.
+
+- **Planned roadmap**
+  1. Keep upstream rough-terrain tasks synced while isolating stair-specific changes.
+  2. Finalize the stair terrain generator and environment configuration (`stairs_env_cfg.py`).
+  3. Train and benchmark a baseline PPO agent, then iterate on improved hyperparameters / architectures.
+  4. Build an evaluation pipeline (headless rollouts, metrics, video capture) for ongoing comparisons.
+  5. Publish findings & release tagged builds in the forked repo.
+
+- **Current progress** *(updated 2025-10-01)*
+  - Added `DeeproboticsLite3StairsEnvCfg` inheriting from the rough configuration with stair-only terrain generation.
+  - Introduced `docs/dev_logs/2025-10-01-stairs-env-sync.md` summarizing implementation steps and validation.
+  - Verified configs via `python -m compileall .../stairs_env_cfg.py`; stair task is discoverable through `scripts/tools/list_envs.py`.
+  - README, development handbook, and project structure now reflect fork-specific goals and maintenance guidelines.
+
 ## Installation
 
 - Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html). We recommend using the conda installation as it simplifies calling Python scripts from the terminal.

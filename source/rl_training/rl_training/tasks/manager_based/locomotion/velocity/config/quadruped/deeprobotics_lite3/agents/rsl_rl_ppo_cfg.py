@@ -44,3 +44,14 @@ class DeeproboticsLite3FlatPPORunnerCfg(DeeproboticsLite3RoughPPORunnerCfg):
 
         self.max_iterations = 50000
         self.experiment_name = "deeprobotics_lite3_flat"
+
+
+@configclass
+class DeeproboticsLite3StairsPPORunnerCfg(DeeproboticsLite3RoughPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.experiment_name = "deeprobotics_lite3_stairs"
+        self.num_steps_per_env = 32
+        self.algorithm.num_learning_epochs = 6
+        self.algorithm.entropy_coef = 0.008
