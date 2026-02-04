@@ -181,3 +181,44 @@ class DeeproboticsLite3RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.commands.base_velocity.ranges.lin_vel_x = (-1.5, 1.5)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.8, 0.8)
         self.commands.base_velocity.ranges.ang_vel_z = (-0.8, 0.8)
+
+
+@configclass
+class DeeproboticsLite3RoughHistoryEnvCfg(DeeproboticsLite3RoughEnvCfg):
+    """Lite3 rough terrain environment with observation history.
+    
+    This configuration extends DeeproboticsLite3RoughEnvCfg to use a 20-timestep
+    observation history, providing temporal context for the policy network.
+    The policy input dimension expands from 45 to 900 (45 × 20).
+    """
+
+    def __post_init__(self):
+        # Import here to avoid circular imports
+        from rl_training.tasks.manager_based.locomotion.velocity.velocity_env_cfg import ObservationsCfg
+        from isaaclab.managers import SceneEntityCfg
+
+        # Call parent initialization
+        super().__post_init__()
+
+        # Switch to history observation group
+        self.observations.policy = ObservationsCfg.PolicyHistoryCfg()
+
+        # Re-apply Lite3-specific observation settings (disable unused terms)
+        self.observations.policy.base_lin_vel = None  # type: ignore
+        self.observations.policy.height_scan = None   # type: ignore
+
+        # Re-apply Lite3-specific scales
+        self.observations.policy.base_ang_vel.scale = 0.25
+        self.observations.policy.joint_pos.scale = 1.0
+        self.observations.policy.joint_vel.scale = 0.05
+
+        # Re-apply Lite3-specific joint names
+        self.observations.policy.joint_pos.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=self.joint_names, preserve_order=True
+        )
+        self.observations.policy.joint_vel.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=self.joint_names, preserve_order=True
+        )
+
+        # Disable zero-weight rewards to avoid configuration errors
+        self.disable_zero_weight_rewards()

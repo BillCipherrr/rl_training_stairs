@@ -196,6 +196,73 @@ class ObservationsCfg:
             self.concatenate_terms = True
 
     @configclass
+    class PolicyHistoryCfg(ObsGroup):
+        """Observations for policy group with history (20 timesteps).
+        
+        This observation group maintains a history buffer of the last 20 timesteps,
+        covering approximately two complete gait cycles (~400ms at 50Hz).
+        The output is flattened to (num_envs, 900) where 900 = 45 dims × 20 steps.
+        """
+
+        # observation terms (order preserved) - same as PolicyCfg
+        base_lin_vel = ObsTerm(
+            func=mdp.base_lin_vel,
+            noise=Unoise(n_min=-0.1, n_max=0.1),
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        base_ang_vel = ObsTerm(
+            func=mdp.base_ang_vel,
+            noise=Unoise(n_min=-0.2, n_max=0.2),
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        projected_gravity = ObsTerm(
+            func=mdp.projected_gravity,
+            noise=Unoise(n_min=-0.05, n_max=0.05),
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        velocity_commands = ObsTerm(
+            func=mdp.generated_commands,
+            params={"command_name": "base_velocity"},
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*", preserve_order=True)},
+            noise=Unoise(n_min=-0.01, n_max=0.01),
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        joint_vel = ObsTerm(
+            func=mdp.joint_vel_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*", preserve_order=True)},
+            noise=Unoise(n_min=-1.5, n_max=1.5),
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        actions = ObsTerm(
+            func=mdp.last_action,
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        height_scan = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=Unoise(n_min=-0.1, n_max=0.1),
+            clip=(-1.0, 1.0),
+            scale=1.0,
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
+            self.history_length = 20          # Keep 20 timesteps (~400ms at 50Hz)
+            self.flatten_history_dim = True   # Flatten to (N, 900)
+
+    @configclass
     class CriticCfg(ObsGroup):
         """Observations for critic group."""
 

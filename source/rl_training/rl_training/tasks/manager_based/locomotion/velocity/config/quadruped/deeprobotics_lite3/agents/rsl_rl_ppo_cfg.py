@@ -40,6 +40,29 @@ class DeeproboticsLite3RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
+class DeeproboticsLite3RoughHistoryPPORunnerCfg(DeeproboticsLite3RoughPPORunnerCfg):
+    """PPO configuration for Lite3 with observation history.
+    
+    Uses larger network architecture to handle the 900-dimensional input
+    (45 obs dims × 20 timesteps).
+    """
+    num_steps_per_env = 24
+    max_iterations = 10000
+    save_interval = 100
+    experiment_name = "deeprobotics_lite3_rough_history"
+    empirical_normalization = False
+    clip_actions = 100
+    # Larger network to handle 900-dim input (45 × 20 history)
+    policy = RslRlPpoActorCriticCfg(
+        init_noise_std=1.0,
+        noise_std_type="log",
+        actor_hidden_dims=[1024, 512, 256, 128],   # Increased first layer width
+        critic_hidden_dims=[1024, 512, 256, 128],
+        activation="elu",
+    )
+
+
+@configclass
 class DeeproboticsLite3FlatPPORunnerCfg(DeeproboticsLite3RoughPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
