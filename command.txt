@@ -6,7 +6,7 @@ python scripts/reinforcement_learning/rsl_rl/play.py \
 
 python scripts/reinforcement_learning/rsl_rl/train.py --task=Rough-Deeprobotics-Lite3-v0 --checkpoint="logs/rsl_rl/deeprobotics_lite3_rough/2025-12-23_12-33-53_base/model_9000.pt"
 
-./scripts/utils/tensorboard_clean.sh --logdir=logs
+tensorboard --logdir=logs
 
 
 /home/user1/anaconda3/envs/env_isaaclab/lib/python3.11/site-packages/rsl_rl/modules/actor_critic.py
@@ -16,3 +16,7 @@ python scripts/reinforcement_learning/rsl_rl/train.py \
   --agent rl_training/DeeproboticsLite3RoughPPORunnerCfg \
   --max_iterations 10 --num_envs 8 \
   --enable_cameras
+
+# 啟動訓練
+python scripts/reinforcement_learning/rsl_rl/train.py \
+    --task=Rough-Deeprobotics-Lite3-History-v0
