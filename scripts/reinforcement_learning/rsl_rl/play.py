@@ -44,6 +44,7 @@ parser.add_argument(
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument("--keyboard", action="store_true", default=False, help="Whether to use keyboard.")
+parser.add_argument("--free-camera", action="store_true", default=False, help="Use free camera instead of following camera.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -223,7 +224,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             if timestep == args_cli.video_length:
                 break
 
-        if args_cli.keyboard:
+        if args_cli.keyboard and not args_cli.free_camera:
             camera_follow(env)
 
         # time delay for real-time evaluation

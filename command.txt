@@ -1,7 +1,7 @@
 python scripts/reinforcement_learning/rsl_rl/play.py \
-    --task Rough-Deeprobotics-Lite3-History-v0 \
+    --task Stairs-Deeprobotics-Lite3-History-v0 \
     --num_envs 10 \
-    --checkpoint logs/rsl_rl/deeprobotics_lite3_rough_history/2026-02-04_19-09-09/model_9999.pt \
+    --checkpoint logs/rsl_rl/deeprobotics_lite3_stairs_history/2026-02-05_03-22-22/model_19999.pt \
     --keyboard
 
 python scripts/reinforcement_learning/rsl_rl/train.py --task=Rough-Deeprobotics-Lite3-v0 --checkpoint="logs/rsl_rl/deeprobotics_lite3_rough/2025-12-23_12-33-53_base/model_9000.pt"
