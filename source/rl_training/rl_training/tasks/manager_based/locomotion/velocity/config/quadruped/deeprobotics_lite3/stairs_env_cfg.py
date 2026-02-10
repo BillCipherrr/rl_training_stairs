@@ -123,13 +123,13 @@ class DeeproboticsLite3StairsEnvCfg(DeeproboticsLite3RoughEnvCfg):
         self.rewards.feet_stumble = self._create_feet_stumble_reward()
         
         # Reduce flat orientation penalty (allow tilting on stairs)
-        self.rewards.flat_orientation_l2.weight = -2.0  # Reduced from -5.0
+        self.rewards.flat_orientation_l2.weight = -0.5  # Reduced from -2.0 for stair climbing
         
         # Slightly reduce velocity tracking (prioritize stability)
         self.rewards.track_lin_vel_xy_exp.weight = 2.5  # Reduced from 3.0
         
-        # Adjust base height for stair climbing (dynamic target)
-        self.rewards.base_height_l2.weight = -8.0  # Slightly reduced
+        # Adjust base height for stair climbing (dynamic target via height_scanner_base)
+        self.rewards.base_height_l2.weight = -2.0  # Reduced from -8.0 for stair climbing
         
         # Increase slide penalty (prevent slipping on edges)
         self.rewards.feet_slide.weight = -0.1  # Increased from -0.05

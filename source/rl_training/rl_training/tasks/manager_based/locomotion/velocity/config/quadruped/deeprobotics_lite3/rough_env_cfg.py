@@ -103,7 +103,8 @@ class DeeproboticsLite3RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_step = 0.01
 
         # ------------------------------Rewards------------------------------
-        self.rewards.action_rate_l2.weight = -0.02 #-0.02
+        # Increase action rate penalty to reduce high-frequency oscillations
+        self.rewards.action_rate_l2.weight = -0.03  # Increased from -0.02
         # self.rewards.smoothness_2.weight = -0.0075
 
         self.rewards.base_height_l2.weight = -10.0
@@ -118,9 +119,11 @@ class DeeproboticsLite3RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.feet_slide.weight = -0.05
         self.rewards.feet_slide.params["sensor_cfg"].body_names = [self.foot_link_name]
         self.rewards.feet_slide.params["asset_cfg"].body_names = [self.foot_link_name]
-        self.rewards.stand_still.weight = -0.5 # -1.0
+        # Stand still: prevent unwanted motion when velocity command is near zero
+        # Increased weight to strongly penalize joint deviation from default pose
+        self.rewards.stand_still.weight = -2.0  # Increased from -0.5 to reduce drifting/swaying
         self.rewards.stand_still.params["asset_cfg"].joint_names = self.joint_names
-        self.rewards.stand_still.params["command_threshold"] = 0.1
+        self.rewards.stand_still.params["command_threshold"] = 0.15  # Slightly larger threshold for smoother transition
         self.rewards.feet_height_body.weight = -2.5 # -2.5
         self.rewards.feet_height_body.params["target_height"] = -0.35
         self.rewards.feet_height_body.params["asset_cfg"].body_names = [self.foot_link_name]
@@ -131,7 +134,8 @@ class DeeproboticsLite3RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.contact_forces.params["sensor_cfg"].body_names = [self.foot_link_name]
 
         self.rewards.lin_vel_z_l2.weight = -2.0 #-2.0
-        self.rewards.ang_vel_xy_l2.weight = -0.05 # -0.05
+        # Increase angular velocity penalty to reduce body roll/pitch oscillations when standing
+        self.rewards.ang_vel_xy_l2.weight = -0.2  # Increased from -0.05 to reduce swaying
 
         self.rewards.track_lin_vel_xy_exp.weight = 3.0
         self.rewards.track_ang_vel_z_exp.weight = 1.5
