@@ -105,6 +105,7 @@ def compute_pie_estimator_loss(
     recon_weight: float = 1.0,
     est_weight: float = 1.0,
     kl_weight: float = 0.01,
+    alive_mask: torch.Tensor | None = None,
 ) -> Dict[str, torch.Tensor]:
     """Compute the full PIE Estimator loss.
 
@@ -121,6 +122,9 @@ def compute_pie_estimator_loss(
         recon_weight: Weight for reconstruction loss.
         est_weight: Weight for estimation loss.
         kl_weight: Weight for KL divergence loss.
+        alive_mask: Optional ``(batch,)`` float tensor with 1.0 for alive envs
+            and 0.0 for done envs whose GT crosses episode boundaries.
+            When provided, per-env losses are masked before averaging.
 
     Returns:
         Dictionary with keys:
@@ -130,22 +134,40 @@ def compute_pie_estimator_loss(
         - ``estimation``: Scalar estimation loss.
         - ``kl``: Scalar KL divergence loss.
     """
-    l_recon = reconstruction_loss(
-        estimator_output["rec_next_state"],
-        gt_next_state,
-        estimator_output["rec_map"],
-        gt_map,
-    )
-    l_est = estimation_loss(
-        estimator_output["est_vel"],
-        gt_vel,
-        estimator_output["est_clearance"],
-        gt_clearance,
-    )
-    l_kl = kl_divergence_loss(
-        estimator_output["latent_mu"],
-        estimator_output["latent_logvar"],
-    )
+    if alive_mask is not None:
+        # Per-env masked loss computation
+        # Reconstruction: per-env MSE then mask
+        state_loss_per_env = ((estimator_output["rec_next_state"] - gt_next_state) ** 2).mean(dim=-1)
+        map_loss_per_env = ((estimator_output["rec_map"] - gt_map) ** 2).mean(dim=-1)
+        l_recon = ((state_loss_per_env + map_loss_per_env) * alive_mask).sum() / alive_mask.sum().clamp(min=1.0)
+
+        # Estimation: per-env MSE then mask
+        vel_loss_per_env = ((estimator_output["est_vel"] - gt_vel) ** 2).mean(dim=-1)
+        clear_loss_per_env = ((estimator_output["est_clearance"] - gt_clearance) ** 2).mean(dim=-1)
+        l_est = ((vel_loss_per_env + clear_loss_per_env) * alive_mask).sum() / alive_mask.sum().clamp(min=1.0)
+
+        # KL: per-env then mask
+        mu = estimator_output["latent_mu"]
+        logvar = estimator_output["latent_logvar"]
+        kl_per_env = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=-1)
+        l_kl = (kl_per_env * alive_mask).sum() / alive_mask.sum().clamp(min=1.0)
+    else:
+        l_recon = reconstruction_loss(
+            estimator_output["rec_next_state"],
+            gt_next_state,
+            estimator_output["rec_map"],
+            gt_map,
+        )
+        l_est = estimation_loss(
+            estimator_output["est_vel"],
+            gt_vel,
+            estimator_output["est_clearance"],
+            gt_clearance,
+        )
+        l_kl = kl_divergence_loss(
+            estimator_output["latent_mu"],
+            estimator_output["latent_logvar"],
+        )
 
     total = recon_weight * l_recon + est_weight * l_est + kl_weight * l_kl
 

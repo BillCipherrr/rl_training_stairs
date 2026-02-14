@@ -2,8 +2,13 @@
 python scripts/reinforcement_learning/rsl_rl/play_pie.py \
     --task Stairs-Deeprobotics-Lite3-PIE-v0 \
     --num_envs 10 \
+    --load_run 2026-02-12_18-45-35 \
+    --checkpoint model_19999.pt \
+    --num_envs 16 --headless --video --video_length 1500 \
+    --headless
+
     --keyboard \
-    --free-camera
+    --free-camera 
 
 python scripts/reinforcement_learning/rsl_rl/train.py --task=Rough-Deeprobotics-Lite3-v0 --checkpoint="logs/rsl_rl/deeprobotics_lite3_rough/2025-12-23_12-33-53_base/model_9000.pt"
 
@@ -27,3 +32,8 @@ python scripts/reinforcement_learning/rsl_rl/train_pie.py \
     --task=Stairs-Deeprobotics-Lite3-PIE-v0 \
     --num_envs=4096 \
     --headless
+
+python scripts/reinforcement_learning/rsl_rl/play_pie.py \
+    --task Stairs-Deeprobotics-Lite3-PIE-v0 \
+    --num_envs 16 \
+    --load_run 2026-02-10_13-50-47 \

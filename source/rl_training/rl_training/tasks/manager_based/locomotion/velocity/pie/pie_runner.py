@@ -400,6 +400,9 @@ class PIEOnPolicyRunner(OnPolicyRunner):
                     pie_gt_data = self._extract_pie_gt(obs)
                     # Override gt_next_state with actual o_{t+1}
                     pie_gt_data["gt_next_state"] = pie_proprio.clone().detach()
+                    # Record which envs are done so replay can mask their GT
+                    # (done envs have GT from the NEW episode, not matching history)
+                    pie_gt_data["done_mask"] = dones.clone().detach()
                     self._pie_rollout_data.append(pie_gt_data)
 
                     # NOW push current obs into history buffer
@@ -534,6 +537,18 @@ class PIEOnPolicyRunner(OnPolicyRunner):
         gt_data["proprio_history"] = self.pie_history_buffer.get_proprio_history().clone().detach()
         gt_data["depth_history"] = self.pie_history_buffer.get_depth_history().clone().detach()
 
+        # Store GRU hidden state snapshot so replay matches rollout context.
+        # At this point in the rollout, _gru_hidden reflects the state BEFORE
+        # get_policy_injection() is called (i.e., the hidden from the previous
+        # step's forward pass). This is exactly the hidden that should be used
+        # when replaying this step's forward pass for PIE loss computation.
+        if self.pie_estimator._gru_hidden is not None:
+            gt_data["gru_hidden"] = self.pie_estimator._gru_hidden.clone().detach()
+        else:
+            gt_data["gru_hidden"] = torch.zeros(
+                self.env.num_envs, self.pie_hidden_dim, device=self.device
+            )
+
         return gt_data
 
     def _update_pie_estimator(self) -> dict:
@@ -545,9 +560,12 @@ class PIEOnPolicyRunner(OnPolicyRunner):
         Uses **per-step gradient accumulation** to keep memory usage constant
         regardless of ``num_steps_per_env``.  Each step's loss is scaled by
         ``1/num_steps`` and immediately back-propagated so that the computation
-        graph is freed before the next step.  This is mathematically equivalent
-        to averaging the total loss over steps and doing a single backward pass,
-        but avoids holding all 32 steps' activations in VRAM simultaneously.
+        graph is freed before the next step.
+
+        Key fixes vs original implementation:
+        - Restores GRU hidden state snapshot from rollout instead of resetting
+          to zero, ensuring replay context matches rollout context.
+        - Masks out done environments whose GT crosses episode boundaries.
 
         Returns:
             Dictionary with PIE loss values.
@@ -564,20 +582,31 @@ class PIEOnPolicyRunner(OnPolicyRunner):
         # Zero gradients once; each step will accumulate into the same grad buffers
         self.pie_optimizer.zero_grad()
 
-        # Reset hidden for PIE replay
-        self.pie_estimator.reset_hidden(self.env.num_envs, torch.device(self.device))
-
         for step_data in self._pie_rollout_data:
-            # Detach GRU hidden to avoid BPTT across steps (saves memory)
-            self.pie_estimator.detach_hidden()
+            # Restore GRU hidden state from rollout snapshot instead of letting
+            # it evolve from zero. This ensures the fusion module sees the same
+            # temporal context during replay as it did during rollout.
+            self.pie_estimator._gru_hidden = step_data["gru_hidden"]
 
-            # Forward pass (with gradient)
+            # Forward pass (with gradient through estimator parameters)
             estimator_output = self.pie_estimator(
                 step_data["proprio_history"],
                 step_data["depth_history"],
             )
 
-            # Compute PIE loss
+            # Mask out done environments: their GT data crosses episode
+            # boundaries (history from old episode, GT from new episode).
+            done_mask = step_data.get("done_mask", None)
+            if done_mask is not None and done_mask.any():
+                alive_mask = (~done_mask.bool()).float()  # 1 for alive, 0 for done
+                num_alive = alive_mask.sum().clamp(min=1.0)
+                # Scale factor to maintain correct gradient magnitude
+                scale = float(self.env.num_envs) / float(num_alive.item())
+            else:
+                alive_mask = None
+                scale = 1.0
+
+            # Compute PIE loss (masked if needed)
             loss_dict = compute_pie_estimator_loss(
                 estimator_output=estimator_output,
                 gt_next_state=step_data["gt_next_state"],
@@ -587,6 +616,7 @@ class PIEOnPolicyRunner(OnPolicyRunner):
                 recon_weight=self.pie_recon_weight,
                 est_weight=self.pie_est_weight,
                 kl_weight=self.pie_kl_weight,
+                alive_mask=alive_mask,
             )
 
             # Scale and backward immediately (gradient accumulation)

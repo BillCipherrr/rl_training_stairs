@@ -85,7 +85,7 @@ class PIEObservationsCfg:
         joint_vel = ObsTerm(
             func=mdp.joint_vel_rel,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*", preserve_order=True)},
-            noise=Unoise(n_min=-1.5, n_max=1.5),
+            noise=Unoise(n_min=-0.5, n_max=0.5),
             clip=(-100.0, 100.0),
             scale=0.05,
         )
@@ -317,10 +317,13 @@ class DeeproboticsLite3StairsPIEEnvCfg(DeeproboticsLite3StairsEnvCfg):
         self.rewards.stand_still.params["command_threshold"] = 0.15  # Slightly larger threshold for smoother transition
         
         # Increase action rate penalty to reduce high-frequency oscillations
-        self.rewards.action_rate_l2.weight = -0.03  # Increased from -0.02
+        self.rewards.action_rate_l2.weight = -0.05  # Increased from -0.03 to suppress jitter
         
         # Increase angular velocity penalty to reduce body roll/pitch oscillations when standing
         self.rewards.ang_vel_xy_l2.weight = -0.2  # Increased from -0.05 to reduce swaying
+
+        # Increase velocity tracking reward to prevent "stand still to survive" exploit
+        self.rewards.track_lin_vel_xy_exp.weight = 3.5  # Increased from 2.5 to incentivize movement
 
         # Disable zero-weight rewards
         self.disable_zero_weight_rewards()

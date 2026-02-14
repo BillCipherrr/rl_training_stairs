@@ -424,8 +424,12 @@ class PIEEstimator(nn.Module):
         # Fuse with temporal memory
         fused, new_hidden = self.fusion(proprio_feat, depth_feat, hidden)
 
-        # Update internal state (detach to prevent BPTT across rollout steps)
-        self._gru_hidden = new_hidden.detach()
+        # NOTE: Do NOT update self._gru_hidden here. The hidden state is
+        # managed externally by the runner:
+        # - During rollout: get_policy_injection() updates _gru_hidden after forward.
+        # - During replay: _update_pie_estimator() restores _gru_hidden from
+        #   saved snapshots before each step's forward call.
+        # Updating here would cause unwanted side effects during replay.
 
         # --- Explicit heads ---
         est_vel = self.vel_head(fused)  # (batch, 3)
@@ -469,7 +473,11 @@ class PIEEstimator(nn.Module):
         """Get concatenated features to inject into the PPO policy.
 
         Returns the explicit + implicit estimates concatenated for policy input:
-        ``[est_vel(3), est_clearance(4), map_enc(map_dim), z_sample(latent_dim)]``
+        ``[est_vel(3), est_clearance(4), map_enc(map_dim), latent_mu(latent_dim)]``
+
+        Uses ``latent_mu`` instead of ``z_sample`` for injection to avoid
+        stochastic noise from VAE reparameterization corrupting the policy input.
+        The VAE sampling is only used during training (PIE loss computation).
 
         This corresponds to PIE Section 2.1 Policy input:
             o_policy = [o_t, v_hat_t, h_hat^f_t, z^m_t, z_t]
@@ -483,8 +491,14 @@ class PIEEstimator(nn.Module):
         """
         with torch.no_grad():
             out = self.forward(proprio_history, depth_history)
+            # Update internal GRU hidden state for the next rollout step.
+            # Detach to prevent graph accumulation across rollout steps.
+            self._gru_hidden = out["gru_hidden"].detach()
+        # Use latent_mu (deterministic) instead of z_sample (stochastic) for
+        # stable policy injection. z_sample has std~1.0 randomness that would
+        # inject noise into the policy input every step.
         injection = torch.cat(
-            [out["est_vel"], out["est_clearance"], out["map_enc"], out["z_sample"]],
+            [out["est_vel"], out["est_clearance"], out["map_enc"], out["latent_mu"]],
             dim=-1,
         )
         # Guard against NaN/Inf values that can corrupt the PPO actor
