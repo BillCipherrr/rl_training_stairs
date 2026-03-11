@@ -181,7 +181,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         "recon_weight": args_cli.pie_recon_weight,
         "est_weight": args_cli.pie_est_weight,
         "kl_weight": args_cli.pie_kl_weight,
-        "use_depth": False,          # Depth camera not yet available
+        "use_depth": True,           # Enable depth for sim-to-real deployment
+        # --- Depth Domain Randomization (sim-to-real) ---
+        "depth_augmentation": {
+            "noise_std": 0.02,                # Additive Gaussian noise (metres, ~RealSense D435i)
+            "dropout_prob": 0.3,              # Probability of rectangular dropout per env
+            "dropout_num_rects_range": [1, 5], # Min/max dropout rectangles
+            "dropout_size_range": [0.05, 0.3], # Rectangle size as fraction of image dim
+            "latency_prob": 0.2,              # Probability of replacing with stale frame
+            "latency_max_frames": 3,          # Max stale frame delay
+            "shift_prob": 0.3,                # Probability of spatial shift
+            "shift_max_pixels": 4,            # Max pixel shift in each direction
+            "scale_range": [0.95, 1.05],      # Multiplicative depth scale perturbation
+        },
         # Observation group keys in the TensorDict
         "proprio_obs_key": "pie_proprio",
         "gt_vel_key": "pie_gt_vel",

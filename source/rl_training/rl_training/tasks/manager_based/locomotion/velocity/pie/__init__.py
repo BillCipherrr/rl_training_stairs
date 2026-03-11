@@ -15,6 +15,7 @@ Reference: docs/PIE.md
 from .pi_estimator import PIEEstimator
 from .pie_history_buffer import PIEHistoryBuffer
 from .pie_loss import compute_pie_estimator_loss
+from .depth_augmentation import DepthAugmentation
 from .pie_gt_utils import (
     get_base_linear_velocity_gt,
     get_foot_clearance_gt,
@@ -26,6 +27,7 @@ __all__ = [
     "PIEEstimator",
     "PIEHistoryBuffer",
     "compute_pie_estimator_loss",
+    "DepthAugmentation",
     "get_base_linear_velocity_gt",
     "get_foot_clearance_gt",
     "get_height_scan_gt",

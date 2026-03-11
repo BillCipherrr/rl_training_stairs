@@ -52,6 +52,7 @@ from rsl_rl.env import VecEnv
 from .pi_estimator import PIEEstimator
 from .pie_history_buffer import PIEHistoryBuffer
 from .pie_loss import compute_pie_estimator_loss
+from .depth_augmentation import DepthAugmentation
 
 
 class PIEOnPolicyRunner(OnPolicyRunner):
@@ -118,6 +119,9 @@ class PIEOnPolicyRunner(OnPolicyRunner):
         # Whether to use depth (disabled by default since we don't have depth camera yet)
         self.pie_use_depth = cfg.get("use_depth", False)
 
+        # Domain randomization config for depth images (sim-to-real transfer)
+        self.pie_depth_aug_cfg = cfg.get("depth_augmentation", {})
+
         # Observation group names in the TensorDict
         self.pie_proprio_obs_key = cfg.get("proprio_obs_key", "pie_proprio")
         self.pie_gt_vel_key = cfg.get("gt_vel_key", "pie_gt_vel")
@@ -162,10 +166,23 @@ class PIEOnPolicyRunner(OnPolicyRunner):
         # Storage for PIE loss computation during rollout
         self._pie_rollout_data = []
 
+        # --- Depth Domain Randomization (sim-to-real) ---
+        self.pie_depth_augmentation = DepthAugmentation(
+            cfg=self.pie_depth_aug_cfg,
+            num_envs=self.env.num_envs,
+            device=torch.device(self.device),
+        )
+        _aug_enabled = bool(self.pie_depth_aug_cfg)
+
         # Compute injection dim for logging
         self.pie_injection_dim = 3 + 4 + self.pie_map_dim + self.pie_latent_dim
         print(f"[PIE] Estimator created: injection_dim={self.pie_injection_dim}, "
               f"params={sum(p.numel() for p in self.pie_estimator.parameters()):,}")
+        print(f"[PIE] Depth augmentation: {'enabled' if _aug_enabled else 'using defaults'} "
+              f"(noise_std={self.pie_depth_augmentation.noise_std}, "
+              f"dropout_prob={self.pie_depth_augmentation.dropout_prob}, "
+              f"latency_prob={self.pie_depth_augmentation.latency_prob}, "
+              f"shift_prob={self.pie_depth_augmentation.shift_prob})")
 
     def _construct_algorithm(self, obs) -> PPO:
         """Override parent to augment initial obs with PIE injection dimension.
@@ -285,6 +302,23 @@ class PIEOnPolicyRunner(OnPolicyRunner):
         # depth_image: (num_envs, 1, depth_height, depth_width)
         return depth_image
 
+    def _apply_depth_augmentation(
+        self, depth_image: torch.Tensor, is_eval: bool = False
+    ) -> torch.Tensor:
+        """Apply domain randomization to a depth image.
+
+        Bridges the sim-to-real gap by adding noise, dropout, latency, and
+        spatial shifts that mimic real RealSense depth camera imperfections.
+
+        Args:
+            depth_image: ``(num_envs, C, H, W)`` from ``_get_pie_depth()``.
+            is_eval: Skip augmentation during evaluation / play.
+
+        Returns:
+            Augmented depth image, same shape.
+        """
+        return self.pie_depth_augmentation(depth_image, is_eval=is_eval)
+
     def _augment_obs_with_pie(self, obs, pie_injection: torch.Tensor):
         """Augment the policy observation with PIE injection features.
 
@@ -356,6 +390,7 @@ class PIEOnPolicyRunner(OnPolicyRunner):
 
         # Augment initial obs with PIE injection
         pie_depth = self._get_pie_depth(obs)
+        pie_depth = self._apply_depth_augmentation(pie_depth, is_eval=False)
         self.pie_history_buffer.push_depth(pie_depth)
         with torch.no_grad():
             pie_injection = self.pie_estimator.get_policy_injection(
@@ -409,6 +444,7 @@ class PIEOnPolicyRunner(OnPolicyRunner):
                     self.pie_history_buffer.push_proprio(pie_proprio)
 
                     pie_depth = self._get_pie_depth(obs)
+                    pie_depth = self._apply_depth_augmentation(pie_depth, is_eval=False)
                     self.pie_history_buffer.push_depth(pie_depth)
 
                     # Reset PIE hidden state and history for done envs
@@ -416,6 +452,7 @@ class PIEOnPolicyRunner(OnPolicyRunner):
                     if len(done_ids) > 0:
                         self.pie_estimator.reset_hidden_for_envs(done_ids)
                         self.pie_history_buffer.reset(done_ids)
+                        self.pie_depth_augmentation.reset(done_ids)
 
                     # PIE: compute injection for next step's obs
                     pie_injection = self.pie_estimator.get_policy_injection(
