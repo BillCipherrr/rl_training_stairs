@@ -74,3 +74,23 @@ gym.register(
     },
 )
 
+gym.register(
+    id="Stairs-Deeprobotics-Lite3-Validation-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.stairs_validation_env_cfg:DeeproboticsLite3StairsValidationEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DeeproboticsLite3StairsPPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="Stairs-Deeprobotics-Lite3-PIE-Validation-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.stairs_validation_env_cfg:DeeproboticsLite3StairsPIEValidationEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DeeproboticsLite3StairsPIEPPORunnerCfg",
+    },
+)
+
