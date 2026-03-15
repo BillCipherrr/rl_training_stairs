@@ -20,3 +20,8 @@ python scripts/reinforcement_learning/rsl_rl/train.py \
 # 啟動訓練
 python scripts/reinforcement_learning/rsl_rl/train.py \
     --task=Rough-Deeprobotics-Lite3-History-v0
+
+python scripts/reinforcement_learning/rsl_rl/eval_stairs.py \
+  --task Rough-Deeprobotics-Lite3-v0 \
+  --load_run 2025-12-23_12-33-53_base \
+  --headless --video
