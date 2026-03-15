@@ -35,5 +35,29 @@ python scripts/reinforcement_learning/rsl_rl/train_pie.py \
 
 python scripts/reinforcement_learning/rsl_rl/play_pie.py \
     --task Stairs-Deeprobotics-Lite3-PIE-v0 \
-    --num_envs 16 \
-    --load_run 2026-02-10_13-50-47 \
+    --num_envs 50 \
+    --load_run 2026-03-10_16-27-27 \
+    --checkpoint model_18500.pt
+
+python scripts/reinforcement_learning/rsl_rl/play_pie.py \
+    --task Stairs-Deeprobotics-Lite3-PIE-Validation-v0 \
+    --num_envs 50 \
+    --load_run 2026-03-10_16-27-27 \
+    --checkpoint model_18500.pt
+
+python scripts/reinforcement_learning/rsl_rl/play_validation.py \
+    --task Stairs-Deeprobotics-Lite3-Validation-v0 \
+    --num_envs 50 --num_eval_episodes 200 \
+    --load_run 2026-03-10_16-27-27 \
+    --checkpoint model_18500.pt \
+    --headless \
+    --free-camera \
+    --video --video_length 1500
+
+python scripts/reinforcement_learning/rsl_rl/play_validation.py \
+    --task Stairs-Deeprobotics-Lite3-PIE-Validation-v0 \
+    --load_run 2026-03-10_16-27-27 \
+    --checkpoint model_18500.pt \
+    --num_envs 50 --success_height 0.05 \
+    --free-camera \
+    --video --video_length 1500

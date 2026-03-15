@@ -71,7 +71,7 @@ parser.add_argument(
 )
 
 # PIE-specific arguments (must match train_pie.py defaults)
-parser.add_argument("--pie_lr", type=float, default=1e-3, help="PIE Estimator learning rate.")
+parser.add_argument("--pie_lr", type=float, default=3e-4, help="PIE Estimator learning rate.")
 parser.add_argument("--pie_recon_weight", type=float, default=1.0, help="PIE reconstruction loss weight.")
 parser.add_argument("--pie_est_weight", type=float, default=1.0, help="PIE estimation loss weight.")
 parser.add_argument("--pie_kl_weight", type=float, default=0.01, help="PIE KL divergence loss weight.")
@@ -283,7 +283,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             for layer in fusion.transformer.layers:
                 attended = layer(attended)
             pooled = attended.mean(dim=1)
-            new_hidden = fusion.gru(pooled, gru_hidden)
+            # Manual GRU cell: avoids aten._thnn_fused_gru_cell which has no ONNX decomposition
+            _gru = fusion.gru
+            _gi = pooled @ _gru.weight_ih.t() + _gru.bias_ih
+            _gh = gru_hidden @ _gru.weight_hh.t() + _gru.bias_hh
+            _i_r, _i_z, _i_n = _gi.chunk(3, dim=-1)
+            _h_r, _h_z, _h_n = _gh.chunk(3, dim=-1)
+            _r = torch.sigmoid(_i_r + _h_r)
+            _z = torch.sigmoid(_i_z + _h_z)
+            _n = torch.tanh(_i_n + _r * _h_n)
+            new_hidden = (1 - _z) * _n + _z * gru_hidden
             fused = new_hidden
 
             est_vel = e.vel_head(fused)
@@ -330,7 +339,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             for layer in fusion.transformer.layers:
                 attended = layer(attended)
             pooled = attended.mean(dim=1)
-            new_hidden = fusion.gru(pooled, gru_hidden)
+            # Manual GRU cell: avoids aten._thnn_fused_gru_cell which has no ONNX decomposition
+            _gru = fusion.gru
+            _gi = pooled @ _gru.weight_ih.t() + _gru.bias_ih
+            _gh = gru_hidden @ _gru.weight_hh.t() + _gru.bias_hh
+            _i_r, _i_z, _i_n = _gi.chunk(3, dim=-1)
+            _h_r, _h_z, _h_n = _gh.chunk(3, dim=-1)
+            _r = torch.sigmoid(_i_r + _h_r)
+            _z = torch.sigmoid(_i_z + _h_z)
+            _n = torch.tanh(_i_n + _r * _h_n)
+            new_hidden = (1 - _z) * _n + _z * gru_hidden
             fused = new_hidden
 
             est_vel = e.vel_head(fused)

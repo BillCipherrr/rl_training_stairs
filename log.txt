@@ -1,73 +1,100 @@
-################################################################################
-                     Learning iteration 19673/20000                     
+                     Learning iteration 8441/20000                      
 
-                       Computation: 36273 steps/s (collection: 1.323s, learning 0.484s)
-             Mean action noise std: 0.70
-          Mean value_function loss: 0.0968
-               Mean surrogate loss: 0.0096
-                 Mean entropy loss: 12.3624
-               Mean pie_total loss: 0.3751
-      Mean pie_reconstruction loss: 0.3603
-          Mean pie_estimation loss: 0.0139
-                  Mean pie_kl loss: 0.0862
-                       Mean reward: 19.13
-               Mean episode length: 929.78
-       Episode_Reward/lin_vel_z_l2: -0.0580
-      Episode_Reward/ang_vel_xy_l2: -0.1190
-Episode_Reward/flat_orientation_l2: -0.0195
-     Episode_Reward/base_height_l2: -0.0175
-   Episode_Reward/joint_torques_l2: -0.0137
-       Episode_Reward/joint_acc_l2: -0.0622
- Episode_Reward/joint_deviation_l1: -0.1315
-   Episode_Reward/joint_pos_limits: -0.0008
-        Episode_Reward/joint_power: -0.0041
-       Episode_Reward/joint_mirror: -0.0100
-     Episode_Reward/action_rate_l2: -0.2870
- Episode_Reward/undesired_contacts: -0.1241
-     Episode_Reward/contact_forces: -0.2979
-Episode_Reward/track_lin_vel_xy_exp: 1.8831
-Episode_Reward/track_ang_vel_z_exp: 1.0554
-      Episode_Reward/feet_air_time: -0.2860
-Episode_Reward/feet_air_time_variance: -0.1999
-          Episode_Reward/feet_gait: 0.3460
-Episode_Reward/feet_contact_without_cmd: 0.0092
-       Episode_Reward/feet_stumble: -0.0057
-         Episode_Reward/feet_slide: -0.1000
-        Episode_Reward/stand_still: -0.0742
-        Episode_Reward/feet_height: -0.4305
-   Episode_Reward/feet_height_body: -0.1631
-         Curriculum/terrain_levels: 5.0448
+                       Computation: 15094 steps/s (collection: 7.727s, learning 0.956s)
+             Mean action noise std: 0.63
+          Mean value_function loss: 150.3535
+               Mean surrogate loss: 0.0118
+                 Mean entropy loss: 11.3080
+               Mean pie_total loss: 0.1681
+      Mean pie_reconstruction loss: 0.1537
+          Mean pie_estimation loss: 0.0143
+                  Mean pie_kl loss: 0.0081
+                       Mean reward: 28.54
+               Mean episode length: 971.04
+       Episode_Reward/lin_vel_z_l2: -0.0587
+      Episode_Reward/ang_vel_xy_l2: -0.3539
+Episode_Reward/flat_orientation_l2: -0.0132
+     Episode_Reward/base_height_l2: -0.0137
+   Episode_Reward/joint_torques_l2: -0.0140
+       Episode_Reward/joint_acc_l2: -0.0633
+ Episode_Reward/joint_deviation_l1: -0.1704
+   Episode_Reward/joint_pos_limits: -0.0024
+        Episode_Reward/joint_power: -0.0039
+       Episode_Reward/joint_mirror: -0.0136
+     Episode_Reward/action_rate_l2: -0.5565
+ Episode_Reward/undesired_contacts: -0.0494
+     Episode_Reward/contact_forces: -0.4684
+Episode_Reward/track_lin_vel_xy_exp: 2.9905
+Episode_Reward/track_ang_vel_z_exp: 1.1740
+      Episode_Reward/feet_air_time: -0.3301
+Episode_Reward/feet_air_time_variance: -0.1975
+          Episode_Reward/feet_gait: 0.4079
+Episode_Reward/feet_contact_without_cmd: 0.0097
+       Episode_Reward/feet_stumble: -0.0076
+         Episode_Reward/feet_slide: -0.1116
+        Episode_Reward/stand_still: -0.1942
+        Episode_Reward/feet_height: -0.3609
+   Episode_Reward/feet_height_body: -0.1489
+         Curriculum/terrain_levels: 4.7860
          Curriculum/command_levels: 1.0000
-Metrics/base_velocity/error_vel_xy: 0.4586
-Metrics/base_velocity/error_vel_yaw: 0.5458
-      Episode_Termination/time_out: 0.9471
+Metrics/base_velocity/error_vel_xy: 0.4492
+Metrics/base_velocity/error_vel_yaw: 0.5856
+      Episode_Termination/time_out: 0.9264
 Episode_Termination/terrain_out_of_bounds: 0.0000
-Episode_Termination/bad_orientation_2: 0.0529
+Episode_Termination/bad_orientation_2: 0.0736
 --------------------------------------------------------------------------------
-                   Total timesteps: 1289355264
-                    Iteration time: 1.81s
-                      Time elapsed: 10:00:34
-                               ETA: 00:09:58
+                   Total timesteps: 1106509824
+                    Iteration time: 8.68s
+                      Time elapsed: 20:32:13
+                               ETA: 04:07:11
 
-Error executing job with overrides: []
-Traceback (most recent call last):
-  File "/home/user1/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py", line 101, in hydra_main
-    func(env_cfg, agent_cfg, *args, **kwargs)
-  File "/home/user1/rl_training/scripts/reinforcement_learning/rsl_rl/train_pie.py", line 214, in main
-    runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
-  File "/home/user1/rl_training/source/rl_training/rl_training/tasks/manager_based/locomotion/velocity/pie/pie_runner.py", line 451, in learn
-    loss_dict = self.alg.update()
-                ^^^^^^^^^^^^^^^^^
-  File "/home/user1/anaconda3/envs/env_isaaclab_2.3.0/lib/python3.11/site-packages/rsl_rl/algorithms/ppo.py", line 249, in update
-    self.policy.act(obs_batch, masks=masks_batch, hidden_states=hid_states_batch[0])
-  File "/home/user1/anaconda3/envs/env_isaaclab_2.3.0/lib/python3.11/site-packages/rsl_rl/modules/actor_critic.py", line 119, in act
-    return self.distribution.sample()
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/user1/anaconda3/envs/env_isaaclab_2.3.0/lib/python3.11/site-packages/torch/distributions/normal.py", line 74, in sample
-    return torch.normal(self.loc.expand(shape), self.scale.expand(shape))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-RuntimeError: normal expects all elements of std >= 0.0
 
-Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
-2026-02-09T18:13:53Z [36,285,188ms] [Warning] [omni.physx.plugin] USD stage detach not called, holding a loose ptr to a stage!
-2026-02-09T18:13:54Z [36,285,837ms] [Warning] [carb] Recursive unloadAllPlugins() detected!
+Learning iteration 12404/20000                     
+
+                       Computation: 14576 steps/s (collection: 8.008s, learning 0.984s)
+             Mean action noise std: 0.55
+          Mean value_function loss: 0.1178
+               Mean surrogate loss: -0.0101
+                 Mean entropy loss: 9.7213
+               Mean pie_total loss: 0.1259
+      Mean pie_reconstruction loss: 0.1139
+          Mean pie_estimation loss: 0.0119
+                  Mean pie_kl loss: 0.0042
+                       Mean reward: 39.59
+               Mean episode length: 985.46
+       Episode_Reward/lin_vel_z_l2: -0.0500
+      Episode_Reward/ang_vel_xy_l2: -0.2915
+Episode_Reward/flat_orientation_l2: -0.0144
+     Episode_Reward/base_height_l2: -0.0116
+   Episode_Reward/joint_torques_l2: -0.0133
+       Episode_Reward/joint_acc_l2: -0.0607
+ Episode_Reward/joint_deviation_l1: -0.1531
+   Episode_Reward/joint_pos_limits: -0.0013
+        Episode_Reward/joint_power: -0.0037
+       Episode_Reward/joint_mirror: -0.0123
+     Episode_Reward/action_rate_l2: -0.4771
+ Episode_Reward/undesired_contacts: -0.0412
+     Episode_Reward/contact_forces: -0.3500
+Episode_Reward/track_lin_vel_xy_exp: 3.1008
+Episode_Reward/track_ang_vel_z_exp: 1.2360
+      Episode_Reward/feet_air_time: -0.2745
+Episode_Reward/feet_air_time_variance: -0.1911
+          Episode_Reward/feet_gait: 0.4191
+Episode_Reward/feet_contact_without_cmd: 0.0102
+       Episode_Reward/feet_stumble: -0.0082
+         Episode_Reward/feet_slide: -0.1090
+        Episode_Reward/stand_still: -0.0736
+        Episode_Reward/feet_height: -0.4886
+   Episode_Reward/feet_height_body: -0.1407
+         Curriculum/terrain_levels: 5.4944
+         Curriculum/command_levels: 1.0000
+Metrics/base_velocity/error_vel_xy: 0.4040
+Metrics/base_velocity/error_vel_yaw: 0.5348
+      Episode_Termination/time_out: 0.9508
+Episode_Termination/terrain_out_of_bounds: 0.0000
+Episode_Termination/bad_orientation_2: 0.0492
+--------------------------------------------------------------------------------
+                   Total timesteps: 1625948160
+                    Iteration time: 8.99s
+                      Time elapsed: 06:07:02
+                               ETA: 18:26:30
