@@ -563,6 +563,32 @@ def feet_height(
     return reward
 
 
+def feet_height_exp(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    target_height: float,
+    std: float,
+) -> torch.Tensor:
+    """Reward feet for reaching target clearance height using an exponential kernel.
+
+    Returns a value in [0, num_feet] where num_feet is the maximum when all feet
+    are exactly at target_height. Use with a positive weight to encourage foot
+    clearance during swing phase.
+
+    Args:
+        target_height: Desired foot height above ground (m).
+        std: Width of the exponential kernel (m). Smaller = sharper peak.
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+    foot_z = asset.data.body_pos_w[:, asset_cfg.body_ids, 2]
+    foot_z_error = torch.square(foot_z - target_height)
+    reward = torch.sum(torch.exp(-foot_z_error / std**2), dim=1)
+    # No reward for zero command
+    reward *= torch.linalg.norm(env.command_manager.get_command(command_name), dim=1) > 0.2
+    return reward
+
+
 def feet_height_body(
     env: ManagerBasedRLEnv,
     command_name: str,
@@ -765,6 +791,27 @@ def feet_air_time_including_ang_z(
     reward *= torch.norm(env.command_manager.get_command(command_name), dim=1) > 0.1
     # reward *= torch.norm(env.command_manager.get_command(command_name)[:, :3], dim=1) > 0.1
     return reward
+
+def forward_progress(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Track forward progress along the commanded velocity direction.
+
+    Returns the dot product of root linear velocity (xy) with the commanded
+    velocity direction. Positive when the robot moves in the commanded direction.
+    Useful as a monitoring metric (weight=0) to track stair climbing ability.
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+    cmd = env.command_manager.get_command(command_name)[:, :2]
+    vel = asset.data.root_lin_vel_b[:, :2]
+    # Dot product of velocity with command direction
+    cmd_norm = torch.linalg.norm(cmd, dim=1, keepdim=True).clamp(min=0.1)
+    cmd_dir = cmd / cmd_norm
+    progress = torch.sum(vel * cmd_dir, dim=1)
+    return progress
+
 
 def lin_vel_xy_l2_with_ang_z_command(
     env: ManagerBasedRLEnv,

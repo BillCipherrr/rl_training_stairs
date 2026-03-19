@@ -6,14 +6,13 @@
 This module provides environment configurations designed for training a
 quadruped robot to climb 20cm stairs using curriculum learning.
 
-Key design decisions (v2):
+Key design decisions:
 - Uses STRAIGHT staircases (not pyramid) for realistic stair climbing
-- 6-level curriculum: Level 0 (15cm) -> Level 5 (20cm step height)
-  Starting directly at high stairs avoids neural plasticity from flat-terrain habits.
+- 10-level curriculum: Level 0 (flat) -> Level 9 (20cm step height)
 - 20% flat terrain preserved at ALL difficulty levels
 - Both ascending and descending stairs
-- Forward-ONLY velocity commands (lin_vel_y=0, ang_vel_z=0)
-  Forces robot to face stairs perpendicularly, simplifying policy search.
+- Each staircase has 1.5m flat areas before and after
+- Forward-only velocity commands (no backward)
 - GRU recurrent policy for temporal reasoning
 
 Environment variants:
@@ -21,12 +20,12 @@ Environment variants:
 - DeeproboticsLite3StairsGRUEnvCfg: Stairs environment for GRU policy
 """
 
+import math
 from copy import deepcopy
 
 import isaaclab.terrains as terrain_gen
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.terrains.terrain_generator_cfg import TerrainGeneratorCfg
 from isaaclab.utils import configclass
@@ -53,45 +52,39 @@ from .rough_env_cfg import DeeproboticsLite3RoughEnvCfg
 STAIRS_TERRAINS_CFG = TerrainGeneratorCfg(
     size=(8.0, 8.0),
     border_width=20.0,
-    # 7 rows: Row 0 = flat, Rows 1-6 = 15-20cm stairs
-    # difficulty = row / (num_rows-1) = row / 6
-    # flat_threshold = 1/6: row 0 (difficulty=0) is flat,
-    #   rows 1-6 (difficulty=1/6..1) linearly span 15-20cm:
-    #   Row 1: 15cm  Row 2: 16cm  Row 3: 17cm
-    #   Row 4: 18cm  Row 5: 19cm  Row 6: 20cm
-    # max_init_terrain_level=6 ensures ALL 7 rows are sampled at init.
-    num_rows=7,
-    num_cols=20,
+    num_rows=10,       # 10 difficulty levels (Level 0 ~ Level 9)
+    num_cols=20,        # 20 terrain columns per level
     horizontal_scale=0.1,
     vertical_scale=0.005,
     slope_threshold=0.75,
     use_cache=False,
-    curriculum=True,
+    curriculum=True,    # Enable terrain curriculum (progressive difficulty)
     sub_terrains={
-        # 40% trapezoid stairs (UP then DOWN)
-        # flat_start_length=1.5m reserves 1.5m flat at each end for spawn.
-        # Layout: 1.5m flat | 7 steps×0.28m=1.96m | 1m plateau | 1.96m | 1.5m flat
-        # Total: 1.5+1.96+1+1.96+1.5 = 7.92m < 8m (0.08m absorbed as extra pad)
+        # 35% trapezoid stairs (UP then DOWN)
+        # Level 0: step_height=0.0 (flat), Level 9: step_height=0.20m
         "trapezoid": TrapezoidStairsTerrainCfg(
-            proportion=0.40,
-            step_height_range=(0.15, 0.20),
+            proportion=0.35,
+            step_height_range=(0.0, 0.20),
             step_width=0.28,
             flat_mid_length=1.0,
-            flat_start_length=1.5,
-            flat_threshold=1 / 6,  # row 0 → flat, rows 1-6 → 15-20cm
         ),
-        # 40% inverted trapezoid stairs (DOWN then UP)
+        # 35% inverted trapezoid stairs (DOWN then UP)
         "inverted_trapezoid": InvertedTrapezoidStairsTerrainCfg(
-            proportion=0.40,
-            step_height_range=(0.15, 0.20),
+            proportion=0.35,
+            step_height_range=(0.0, 0.20),
             step_width=0.28,
             flat_mid_length=1.0,
-            flat_start_length=1.5,
-            flat_threshold=1 / 6,
         ),
-        # 20% flat terrain (preserved at ALL difficulty levels for stability)
+        # 20% flat terrain (preserved at ALL difficulty levels)
         "flat": terrain_gen.MeshPlaneTerrainCfg(
             proportion=0.20,
+        ),
+        # 10% random rough terrain (for robustness)
+        "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+            proportion=0.10,
+            noise_range=(0.01, 0.06),
+            noise_step=0.01,
+            border_width=0.25,
         ),
     },
 )
@@ -101,9 +94,8 @@ STAIRS_TERRAINS_CFG = TerrainGeneratorCfg(
 class DeeproboticsLite3StairsEnvCfg(DeeproboticsLite3RoughEnvCfg):
     """Lite3 stair climbing environment with straight staircases.
 
-    Curriculum: Row 0 (flat) + Rows 1-6 (15-20cm stairs), 7 rows total.
-    Terrain mix: 40% ascending + 40% descending + 20% flat.
-    All 7 rows sampled at init (max_init_terrain_level=6).
+    Curriculum: Level 0 (flat ground) -> Level 9 (20cm step height)
+    Terrain mix: 30% ascending + 30% descending + 20% flat + 10% slopes + 10% rough
     """
 
     def __post_init__(self):
@@ -115,58 +107,28 @@ class DeeproboticsLite3StairsEnvCfg(DeeproboticsLite3RoughEnvCfg):
         # ------------------------------Scene------------------------------
         # Use straight staircase terrain with curriculum
         self.scene.terrain.terrain_generator = deepcopy(STAIRS_TERRAINS_CFG)
-
-        # ------------------------------Observations------------------------------
-        # Re-enable height scan for stair climbing exteroception.
-        # rough_env_cfg disabled it; stairs need terrain look-ahead.
-        # Output dim: ceil(1.6/0.07) × ceil(1.0/0.07) = 23×15 = 345 values
-        # Scanner is mounted on body, aligned to yaw, covers 1.6m×1.0m ahead.
-        from isaaclab.managers import ObservationTermCfg as ObsTerm
-        from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
-        self.observations.policy.height_scan = ObsTerm(
-            func=mdp.height_scan,
-            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-            noise=Unoise(n_min=-0.1, n_max=0.1),
-            clip=(-1.0, 1.0),
-            scale=1.0,
-        )
+        # Start new robots at lower difficulty levels
+        self.scene.terrain.max_init_terrain_level = 3
 
         # ------------------------------Commands------------------------------
-        # Forward-only velocity: robot must face stairs perpendicularly.
-        # Lateral/yaw commands disabled to simplify policy search space.
-        self.commands.base_velocity.ranges.lin_vel_x = (0.3, 0.8)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (0.0, 0.0)
+        # Forward-only, conservative velocity for stair climbing
+        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 0.8)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.3, 0.3)
+        self.commands.base_velocity.ranges.ang_vel_z = (-0.3, 0.3)
 
         # ------------------------------Rewards------------------------------
-        # === Velocity tracking ===
+        # === Velocity tracking (reduced, prioritize stability over speed) ===
         self.rewards.track_lin_vel_xy_exp.weight = 2.0
         self.rewards.track_ang_vel_z_exp.weight = 1.0
 
-        # === Feet behavior (tuned for stair climbing) ===
+        # === Feet behavior (aggressive tuning for stairs) ===
         # Encourage longer air time for clear stepping over stairs
         self.rewards.feet_air_time.weight = 6.0
         self.rewards.feet_air_time.params["threshold"] = 0.35
 
-        # Foot clearance: positive reward for reaching 30cm target height.
-        # Exponential kernel (std=0.10m) rewards feet near target_height.
-        # Higher target than step height encourages proactive leg lifting.
-        self.rewards.feet_height = RewTerm(
-            func=mdp.feet_height_exp,
-            weight=1.0,
-            params={
-                "asset_cfg": SceneEntityCfg("robot", body_names=[self.foot_link_name]),
-                "target_height": 0.30,
-                "std": 0.10,
-                "command_name": "base_velocity",
-            },
-        )
-
-        # Disable feet_height_body: it conflicts with feet_height_exp.
-        # feet_height_body targets -0.35m in body frame. When feet are raised
-        # to +0.30m (world frame) the body-frame error is large → big penalty
-        # that directly cancels the feet_height_exp reward signal.
-        self.rewards.feet_height_body.weight = 0.0
+        # Higher foot clearance target to clear 20cm steps
+        self.rewards.feet_height.weight = -1.0
+        self.rewards.feet_height.params["target_height"] = 0.10
 
         # Strong stumble penalty (hitting step edges)
         self.rewards.feet_stumble = RewTerm(
@@ -182,70 +144,53 @@ class DeeproboticsLite3StairsEnvCfg(DeeproboticsLite3RoughEnvCfg):
 
         # === Body stability (relaxed for stair climbing) ===
         # Allow more tilting when climbing/descending
-        self.rewards.flat_orientation_l2.weight = -0.5
+        self.rewards.flat_orientation_l2.weight = -1.5
 
-        # Disable base_height_l2: base height varies significantly on stairs
-        # (flat: 0.35m, top of 20cm step: ~0.55m → error 0.20m → large penalty).
-        # Penalizing this conflicts with the goal of climbing higher terrain.
-        self.rewards.base_height_l2.weight = 0.0
+        # Relax base height penalty (height varies on stairs)
+        self.rewards.base_height_l2.weight = -5.0
 
         # Reduce vertical velocity penalty (climbing has vertical motion)
         self.rewards.lin_vel_z_l2.weight = -1.0
 
-        # === Action smoothness (lowered to allow quick corrective actions) ===
-        self.rewards.action_rate_l2.weight = -0.01
+        # === Action smoothness (slightly increased for stability) ===
+        self.rewards.action_rate_l2.weight = -0.05
 
-        # === Forward progress reward (active, encourages advancing on terrain) ===
+        # === Forward progress monitoring (weight=0, pure logging) ===
         self.rewards.forward_progress = RewTerm(
             func=mdp.forward_progress,
-            weight=1.0,
+            weight=0.0,
             params={"command_name": "base_velocity"},
         )
 
-        # ------------------------------Terminations------------------------------
-        # Relax orientation termination for stair climbing.
-        # Default threshold 0.7 (≈44°) is too strict: natural forward tilt
-        # during stair ascent/descent can momentarily exceed this.
-        # 0.85 ≈ 58° gives extra tolerance without allowing true falls.
-        self.terminations.bad_orientation_2 = DoneTerm(
-            func=mdp.bad_orientation_2,
-            params={"lateral_threshold": 0.85},
-        )
-
         # ------------------------------Events------------------------------
-        # Tight yaw range: robot spawns facing stairs perpendicularly.
-        self.events.randomize_reset_base.params["pose_range"]["yaw"] = (-0.1, 0.1)
-        # Origin is now at the stair entry (x = flat_end ≈ 1.54m in cell).
-        # Negative x offsets → flat ground; positive offsets → on stairs.
-        # (-1.2, 0.0): robots always spawn 0~1.2m before the first step,
-        # so forward velocity always points directly into the stairs.
-        self.events.randomize_reset_base.params["pose_range"]["x"] = (-1.2, 0.0)
-        self.events.randomize_reset_base.params["pose_range"]["y"] = (-1.0, 1.0)
+        # Restrict yaw range for stair training (roughly face forward)
+        self.events.randomize_reset_base.params["pose_range"]["yaw"] = (-0.5, 0.5)
 
         # ------------------------------Curriculum------------------------------
-        # Set max_init_terrain_level to the highest row so ALL 7 rows are
-        # sampled randomly at initialization. This prevents the policy from
-        # developing flat-ground habits before encountering stairs.
-        self.scene.terrain.max_init_terrain_level = 6
-
-        # Terrain levels: advance difficulty based on walking distance.
-        # This already logs the mean terrain level to TensorBoard.
+        # Terrain levels: advance difficulty based on walking distance
         self.curriculum.terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
 
-        # Disable command_levels: lin_vel_y and ang_vel_z are fixed at 0,
-        # so this curriculum only affected lin_vel_x. Starting at 30% of
-        # (0.3, 0.8) = (0.09, 0.24) also caused min speed < stand_still
-        # threshold (0.1), triggering conflicting rewards simultaneously.
-        # Use a fixed velocity range instead.
-        self.curriculum.command_levels = None
+        # Command levels: gradually increase velocity range
+        self.curriculum.command_levels = CurrTerm(
+            func=mdp.command_levels_vel,
+            params={
+                "reward_term_name": "track_lin_vel_xy_exp",
+                "range_multiplier": (0.3, 1.0),
+            },
+        )
 
-        # Remove stair_metric: it returned torch.mean(terrain_levels.float()),
-        # identical to terrain_levels_vel's return value → duplicate TensorBoard curve.
-        self.curriculum.stair_metric = None
+        # Stair climbing metric: monitor average terrain level in TensorBoard
+        self.curriculum.stair_metric = CurrTerm(func=mdp.stair_climbing_metric)
 
-        # Disable zero-weight rewards
+        # Disable zero-weight rewards (except forward_progress which is for logging)
         if self.__class__.__name__ == "DeeproboticsLite3StairsEnvCfg":
             self.disable_zero_weight_rewards()
+            # Re-enable forward_progress for monitoring (it was disabled above due to weight=0)
+            self.rewards.forward_progress = RewTerm(
+                func=mdp.forward_progress,
+                weight=0.0,
+                params={"command_name": "base_velocity"},
+            )
 
 
 @configclass
@@ -265,8 +210,13 @@ class DeeproboticsLite3StairsGRUEnvCfg(DeeproboticsLite3StairsEnvCfg):
         # GRU uses standard observations (no history buffer needed)
         # The parent already sets this up correctly via RoughEnvCfg
 
-        # Disable zero-weight rewards (forward_progress has weight=1.0, kept active)
+        # Disable zero-weight rewards and re-enable forward_progress
         self.disable_zero_weight_rewards()
+        self.rewards.forward_progress = RewTerm(
+            func=mdp.forward_progress,
+            weight=0.0,
+            params={"command_name": "base_velocity"},
+        )
 
 
 @configclass
@@ -305,5 +255,10 @@ class DeeproboticsLite3StairsHistoryEnvCfg(DeeproboticsLite3StairsEnvCfg):
             "robot", joint_names=self.joint_names, preserve_order=True
         )
 
-        # Disable zero-weight rewards (forward_progress has weight=1.0, kept active)
+        # Disable zero-weight rewards and re-enable forward_progress
         self.disable_zero_weight_rewards()
+        self.rewards.forward_progress = RewTerm(
+            func=mdp.forward_progress,
+            weight=0.0,
+            params={"command_name": "base_velocity"},
+        )

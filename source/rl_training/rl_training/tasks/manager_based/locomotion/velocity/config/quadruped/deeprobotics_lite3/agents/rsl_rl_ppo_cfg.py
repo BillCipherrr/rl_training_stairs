@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from isaaclab.utils import configclass
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoActorCriticRecurrentCfg, RslRlPpoAlgorithmCfg
 
 
 @configclass
@@ -63,6 +63,47 @@ class DeeproboticsLite3RoughHistoryPPORunnerCfg(DeeproboticsLite3RoughPPORunnerC
 
 
 @configclass
+class DeeproboticsLite3RoughGRUPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    """PPO with GRU recurrent policy for Lite3 rough terrain.
+
+    Architecture: obs(45) → GRU(hidden=256) → h_t → MLP[256, 128] → actions(12)
+    No history manager needed; GRU hidden state captures temporal dependencies.
+    velocity_commands stays in the per-step input (correct for GRU).
+    """
+    num_steps_per_env = 24
+    max_iterations = 10000
+    save_interval = 100
+    experiment_name = "deeprobotics_lite3_rough_gru"
+    empirical_normalization = False
+    clip_actions = 100
+    obs_groups = {"policy": ["policy"], "critic": ["critic"]}
+    policy = RslRlPpoActorCriticRecurrentCfg(
+        init_noise_std=1.0,
+        noise_std_type="log",
+        actor_hidden_dims=[256, 128],
+        critic_hidden_dims=[256, 128],
+        activation="elu",
+        rnn_type="gru",
+        rnn_hidden_dim=256,
+        rnn_num_layers=1,
+    )
+    algorithm = RslRlPpoAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.01,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )
+
+
+@configclass
 class DeeproboticsLite3FlatPPORunnerCfg(DeeproboticsLite3RoughPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
@@ -73,12 +114,11 @@ class DeeproboticsLite3FlatPPORunnerCfg(DeeproboticsLite3RoughPPORunnerCfg):
 
 @configclass
 class DeeproboticsLite3StairsPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    """PPO configuration for Lite3 stairs climbing training.
-    
+    """PPO configuration for Lite3 stairs climbing training (MLP policy).
+
     Key changes from rough config:
-    - num_steps_per_env: 32 (increased for complex terrain)
-    - max_iterations: 20000 (longer training for curriculum)
-    - Larger network for handling height scan input
+    - num_steps_per_env: 32 (longer rollouts for stair curriculum)
+    - max_iterations: 30000 (10-level curriculum needs more iterations)
     """
     num_steps_per_env = 32
     max_iterations = 20000
@@ -110,24 +150,63 @@ class DeeproboticsLite3StairsPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
+class DeeproboticsLite3StairsGRUPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    """PPO with GRU recurrent policy for Lite3 stair climbing.
+
+    Architecture: obs(45+345) -> GRU(hidden=256) -> h_t -> MLP[256, 128] -> actions(12)
+    obs dim = 45 proprioception + 345 height_scan (23×15 grid, res=0.07m)
+
+    Key changes from v1:
+    - num_steps_per_env: 32→48 (longer rollouts cover full stair crossing sequence)
+    - gamma: 0.99→0.995 (effective horizon 100→200 steps for long-range planning)
+    - entropy_coef: 0.01→0.02 (more exploration; avoids early local optima)
+    """
+    num_steps_per_env = 48
+    max_iterations = 30000
+    save_interval = 100
+    experiment_name = "deeprobotics_lite3_stairs_gru"
+    empirical_normalization = False
+    clip_actions = 100
+    obs_groups = {"policy": ["policy"], "critic": ["critic"]}
+    policy = RslRlPpoActorCriticRecurrentCfg(
+        init_noise_std=1.0,
+        noise_std_type="log",
+        actor_hidden_dims=[256, 128],
+        critic_hidden_dims=[256, 128],
+        activation="elu",
+        rnn_type="gru",
+        rnn_hidden_dim=256,
+        rnn_num_layers=1,
+    )
+    algorithm = RslRlPpoAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.02,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.995,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )
+
+
+@configclass
 class DeeproboticsLite3StairsHistoryPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO configuration for Lite3 stairs climbing with observation history.
-    
+
     Uses larger network architecture to handle the expanded input dimension
-    (observation dims × 20 timesteps + height scan).
-    
-    For fine-tuning from pretrained model, use:
-        --load_run 2026-02-04_19-09-09 --checkpoint model_9999.pt
-    
-    Note: When fine-tuning, consider using lower learning rate (1e-4).
+    (45 obs dims x 20 timesteps = 900 dimensions).
     """
     num_steps_per_env = 32
-    max_iterations = 20000
+    max_iterations = 30000
     save_interval = 100
     experiment_name = "deeprobotics_lite3_stairs_history"
     empirical_normalization = False
     clip_actions = 100
-    # Larger network to handle history + height scan input
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         noise_std_type="log",
@@ -139,10 +218,10 @@ class DeeproboticsLite3StairsHistoryPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.008,  # Slightly lower for fine-tuning stability
+        entropy_coef=0.008,
         num_learning_epochs=5,
         num_mini_batches=4,
-        learning_rate=1.0e-3,  # Can reduce to 1e-4 for fine-tuning
+        learning_rate=1.0e-3,
         schedule="adaptive",
         gamma=0.99,
         lam=0.95,

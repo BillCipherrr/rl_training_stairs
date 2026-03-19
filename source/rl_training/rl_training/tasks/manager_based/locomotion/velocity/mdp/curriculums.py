@@ -61,3 +61,31 @@ def command_levels_vel(
             base_velocity_ranges.lin_vel_y = new_vel_y.tolist()
 
     return torch.tensor(base_velocity_ranges.lin_vel_x[1], device=env.device)
+
+
+def stair_climbing_metric(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+) -> torch.Tensor:
+    """Monitor stair climbing performance via terrain level distribution.
+
+    This curriculum term does NOT modify any environment parameters.
+    It purely logs the average and max terrain level that robots are
+    currently surviving on, which appears in TensorBoard as a curriculum metric.
+
+    Returns:
+        Average terrain level across all environments (0-9 scale).
+    """
+    terrain = env.scene.terrain
+    # terrain_levels: (num_envs,) int tensor indicating current difficulty row
+    levels = terrain.terrain_levels.float()
+    avg_level = torch.mean(levels)
+    max_level = torch.max(levels)
+
+    # Store for external logging if needed
+    if not hasattr(env, "_stair_metric_cache"):
+        env._stair_metric_cache = {}
+    env._stair_metric_cache["avg_terrain_level"] = avg_level.item()
+    env._stair_metric_cache["max_terrain_level"] = max_level.item()
+
+    return avg_level

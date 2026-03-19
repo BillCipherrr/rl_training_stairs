@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper; import inspect; print\\(inspect.getsource\\(RslRlVecEnvWrapper.step\\)\\)\")",
+      "Bash(python3:*)",
+      "Bash(grep -A 5 'class RslRlVecEnvWrapper' /home/user1/rl_training -r --include=*.py)",
+      "Read(//home/user1/IsaacLab/**)",
+      "Bash(conda run -n env_isaaclab_2.3.0 python3 -c \":*)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api:*)"
+    ]
+  }
+}

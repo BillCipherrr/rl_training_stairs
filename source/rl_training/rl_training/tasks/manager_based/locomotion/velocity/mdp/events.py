@@ -202,12 +202,20 @@ def _randomize_prop_by_op(
 
 
 def bad_orientation_2(
-    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot") # type: ignore
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),  # type: ignore
+    lateral_threshold: float = 0.7,
 ) -> torch.Tensor:
     """Terminate when the asset's orientation is too far from the desired orientation limits.
 
     This is computed by checking the angle between the projected gravity vector and the z-axis.
+
+    Args:
+        lateral_threshold: Maximum allowed |projected_gravity_b[:, :2]| value.
+            Default 0.7 ≈ 44°. Raise to 0.85 (≈ 58°) for stair climbing to
+            tolerate the natural forward tilt during ascent/descent.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return (asset.data.projected_gravity_b[:, 2] > 0) | (asset.data.projected_gravity_b[:, :2].abs() > 0.7).any(-1)
+    return (asset.data.projected_gravity_b[:, 2] > 0) | (
+        asset.data.projected_gravity_b[:, :2].abs() > lateral_threshold
+    ).any(-1)

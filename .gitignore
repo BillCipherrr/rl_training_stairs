@@ -37,3 +37,8 @@ _build
 
 
 **/usd/*
+
+
+## Ingore all md, txt files
+**/*.md
+**/*.txt
